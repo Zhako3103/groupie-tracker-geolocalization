@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="utf-8">
+    <title>{{ .Name }} — Карта концертов</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <style>
+        html, body, #map { height: 100%; margin: 0; padding: 0; }
+        .map-topbar { position: absolute; top: 20px; left: 45px; z-index: 1000; }
+        .map-topbar a { background: rgba(255,255,255,0.9); padding: 8px 12px; text-decoration: none; color: #333; border-radius: 4px; }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <div class="map-topbar"><a href="/artist?id={{ .ID }}">← Назад к артисту</a></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script>
+        (function(){
+            const params = new URLSearchParams(location.search);
+            const id = params.get('id');
+            if(!id) { document.body.innerHTML = '<p>Нет id артиста</p>'; return; }
+
+            const map = L.map('map').setView([20,0], 2);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            fetch(`/api/artist_locations?id=${id}`)
+                .then(res => res.json())
+                .then(data => {
+                    if(!Array.isArray(data) || data.length === 0) {
+                        L.control({position: 'topright'}).onAdd = function(){
+                            var el = L.DomUtil.create('div'); el.innerHTML = '<div style="background:rgba(255,255,255,0.9);padding:8px;border-radius:4px;">Нет координат для отображения</div>'; return el;
+                        };
+                        return;
+                    }
+                    const bounds = [];
+                    data.forEach(item => {
+                        const lat = item.lat;
+                        const lon = item.lon;
+                        L.marker([lat, lon]).addTo(map).bindPopup(item.location);
+                        bounds.push([lat, lon]);
+                    });
+                    if(bounds.length) map.fitBounds(bounds, {padding:[50,50]});
+                })
+                .catch(err => {
+                    console.error(err);
+                });
+        })();
+    </script>
+</body>
+
+</html>
