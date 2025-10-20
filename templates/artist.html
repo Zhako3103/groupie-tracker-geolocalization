@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="utf-8">
+    <title>{{ .Name }} — Groupie Trackers</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-sA+e2p0tP3k3kY2gqkR7fZQ2s3w1gqv3sZ6b0u5r9jY=" crossorigin="" />
+</head>
+
+<body>
+    <header class="artist-header">
+        <a class="back" href="/">← Назад</a>
+        <h1>{{ .Name }}</h1>
+        <a class="open-map-full" href="/artist_map?id={{ .ID }}">Открыть карту на всю страницу</a>
+    </header>
+
+    <main class="artist-container">
+        <div class="artist-card">
+            <img class="artist-img" src="{{ .Image }}" alt="{{ .Name }}">
+            <div class="artist-info">
+                <p><strong>Год основания:</strong> {{ .CreationDate }}</p>
+                <p><strong>Первый альбом:</strong> {{ .FirstAlbum }}</p>
+
+                <h3>Участники</h3>
+                <ul>
+                    {{ range .Members }}<li>{{ . }}</li>{{ end }}
+                </ul>
+
+                <h3>Локации (locations)</h3>
+                <ul>
+                    {{ if .Locations }}
+                    {{ range .Locations }}<li>{{ . }}</li>{{ end }}
+                    {{ else }}
+                    <li>Нет данных</li>
+                    {{ end }}
+                </ul>
+
+                <h3>Даты (dates)</h3>
+                <ul>
+                    {{ if .Dates }}
+                    {{ range .Dates }}<li>{{ . }}</li>{{ end }}
+                    {{ else }}
+                    <li>Нет данных</li>
+                    {{ end }}
+                </ul>
+
+                <h3>Концерты (city → даты) — relation</h3>
+                <div class="concerts">
+                    {{ if .DatesByPlace }}
+                    {{ range $city, $dates := .DatesByPlace }}
+                    <div class="concert">
+                        <strong>{{ $city }}:</strong>
+                        {{ range $i, $d := $dates }}{{ if $i }}, {{ end }}{{ $d }}{{ end }}
+                    </div>
+                    {{ end }}
+                    {{ else }}
+                    <p>Нет данных relation</p>
+                    {{ end }}
+                </div>
+            </div>
+        </div>
+    </main>
+    <section class="map-section">
+        <h2>Карта концертов</h2>
+        <div id="map" class="artist-map" style="height:400px;"></div>
+        <p id="map-fallback" style="display:none;">Нет координат для отображения на карте.</p>
+    </section>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-o9N1j7k1wQk5Yz9l7H6b6q8s9r4v1x2t9m6j3s4p5vI=" crossorigin=""></script>
+    <script>
+        // Запросим геокоды для артиста и отобразим маркеры
+        (function() {
+            const params = new URLSearchParams(location.search);
+            const id = params.get('id');
+            if (!id) return;
+
+            const map = L.map('map').setView([20,0], 2);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            fetch(`/api/artist_locations?id=${id}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (!Array.isArray(data) || data.length === 0) {
+                        document.getElementById('map').style.display = 'none';
+                        document.getElementById('map-fallback').style.display = 'block';
+                        return;
+                    }
+                    const bounds = [];
+                    data.forEach(item => {
+                        const lat = item.lat;
+                        const lon = item.lon;
+                        const marker = L.marker([lat, lon]).addTo(map).bindPopup(`${item.location}`);
+                        bounds.push([lat, lon]);
+                    });
+                    if (bounds.length) map.fitBounds(bounds, {padding: [50,50]});
+                })
+                .catch(err => {
+                    console.error('geocode fetch error', err);
+                    document.getElementById('map').style.display = 'none';
+                    document.getElementById('map-fallback').style.display = 'block';
+                });
+        })();
+    </script>
+</body>
+
+</html>
